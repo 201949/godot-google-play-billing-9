@@ -8,11 +8,11 @@ ext.libraryVersionName = "9.1.0"
 
 android {
     namespace 'com.magikelle.godotgoogleplaybilling'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         minSdk 24
-        targetSdk 35
+        targetSdk 36
         versionCode libraryVersionCode
         versionName libraryVersionName
     }
