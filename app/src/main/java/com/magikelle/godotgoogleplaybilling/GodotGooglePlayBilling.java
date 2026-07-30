@@ -201,7 +201,7 @@ public class GodotGooglePlayBilling extends GodotPlugin implements PurchasesUpda
                         returnValue.put("response_code", billingResult.getResponseCode());
                         returnValue.put("debug_message", sanitize(billingResult.getDebugMessage()));
                     }
-                    emitSignal("query_purchases_response", returnValue);
+                    emitSignal("query_purchases_response",(Object) returnValue);
                 } catch (Exception e) {
                     log("Error processing purchases response: " + e.getMessage());
                     emitSignal("purchase_error", BillingClient.BillingResponseCode.ERROR, "Failed to process purchases: " + e.getMessage());
@@ -266,9 +266,17 @@ public class GodotGooglePlayBilling extends GodotPlugin implements PurchasesUpda
                             }
                         }
                         log("Product Details Query Completed for " + type + " products.");
-                        emitSignal("product_details_query_completed",
-                                GooglePlayBillingUtils.convertProductDetailsListToDictionaryObjectArray(queryProductDetailsResult.getProductDetailsList()));
 
+                        Object[] productDetailsObj = GooglePlayBillingUtils.convertProductDetailsListToDictionaryObjectArray(queryProductDetailsResult.getProductDetailsList());
+
+                        Log.d(TAG, "queryProductDetails: " + productDetailsObj.length);
+                        emitSignal("product_details_query_completed", (Object) productDetailsObj
+                        );
+
+                        for (Object p:
+                             productDetailsObj) {
+                            Log.d(TAG, "queryProductDetails: product "  + p);
+                        }
                         List<UnfetchedProduct> unfetchedProducts = queryProductDetailsResult.getUnfetchedProductList();
                         if (!unfetchedProducts.isEmpty()) {
                             for (UnfetchedProduct unfetchedProduct : unfetchedProducts) {
@@ -485,7 +493,7 @@ public class GodotGooglePlayBilling extends GodotPlugin implements PurchasesUpda
                     log("Purchase token: " + sanitize(purchase.getPurchaseToken()));
                 }
                 emitSignal("purchases_updated",
-                        GooglePlayBillingUtils.convertPurchaseListToDictionaryObjectArray(purchases));
+                        (Object) GooglePlayBillingUtils.convertPurchaseListToDictionaryObjectArray(purchases));
             } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
                 log("Purchase cancelled by user");
                 emitSignal("purchase_error",
