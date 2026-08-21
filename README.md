@@ -60,7 +60,7 @@ You can easily compile this plugin yourself for any versions of Godot libraries.
 
 ## Preparing the Editor and Project for Plugin Use
 
-1. Check your Android export template settings. You need to specify a minimum SDK version of 21 and a target SDK version of 35 to meet the Google Play target platform requirements.
+1. Check your Android export template settings. You need to specify a minimum SDK version of 26 and a target SDK version of 36 to meet the Google Play target platform actual requirements.
 
     ![Pic 01](https://raw.githubusercontent.com/201949/godot-google-play-billing-9/main/pic_01.png)
 
