@@ -58,6 +58,18 @@ You can easily compile this plugin yourself for any versions of Godot libraries.
 6. The newly generated plugin `.aar` file will be located inside `app/build/outputs/aar/`.
 7. Take the 'release' `.aar` file from that directory along with the `GodotGooglePlayBilling.gdap` file from the repository root directory, and place them both in your Godot project's `android/plugins/` directory.
 
+## Preparing the Editor and Project for Plugin Use
+
+1. Check your Android export template settings. You need to specify a minimum SDK version of 21 and a target SDK version of 35 to meet the Google Play target platform requirements.
+
+    ![Pic 01](https://raw.githubusercontent.com/201949/godot-google-play-billing-9/main/pic_01.png)
+
+2. Check the `android/build/config.gradle` file and make any necessary changes to the SDK version specification.
+
+    ![Pic 02](https://raw.githubusercontent.com/201949/godot-google-play-billing-9/main/pic_02.png)
+
+3. In the Android export template "Options" section under "Permissions", set "Access Network State" and "Internet" to "On". Also, add the following permission under "Custom Permissions": `com.android.vending.BILLING` (this may be required).
+
 ## Example of Usage on Godot
 
 1. After copying the plugin `.aar` and `.gdap` files into `res://android/plugins/`, make sure to enable the plugin in the **Export** window under the Android preset options.
