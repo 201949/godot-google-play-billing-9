@@ -1,23 +1,17 @@
+# IDE settings (Android Studio / IntelliJ IDEA)
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-.idea/**
-.idea
-.gradle/**
+
+# Gradle build tool and its local cache
 .gradle/
-.gradlew
-app/build/**
-app/build
-.gradle/8.2/**
-.gradle/8.2
+/local.properties
+
+# Build outputs (temporary compilation folders)
+/build/
+app/build/
+.externalNativeBuild/
+.cxx/
+/captures/
+
+# System files
+.DS_Store
