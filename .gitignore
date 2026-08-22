@@ -6,12 +6,13 @@
 .gradle/
 /local.properties
 
-# Build outputs (temporary compilation folders)
+# Build outputs and dependencies (temporary compilation folders and local libraries)
 /build/
 app/build/
 .externalNativeBuild/
 .cxx/
 /captures/
+/libs/*.aar
 
 # System files
 .DS_Store
