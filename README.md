@@ -7,7 +7,7 @@ This plugin bridges the Godot Engine with the latest Google Play Billing API v9.
 [![Android](https://img.shields.io/badge/Platform-Android-brightgreen.svg)](https://developer.android.com)
 [![Godot](https://img.shields.io/badge/Godot%20Engine-3.6.2-blue.svg)](https://github.com/godotengine/godot/)
 [![GPBL](https://img.shields.io/badge/Google%20Play%20Billing%20Library-9.1.0-green.svg)](https://developer.android.com/google/play/billing/integrate)
-[![MIT license](https://img.shields.io/badge/License-MIT-yellowgreen.svg)](https://github.com/201949/godot-google-play-billing-7/blob/main/LICENSE)
+[![MIT license](https://img.shields.io/badge/License-MIT-yellowgreen.svg)](https://github.com/201949/godot-google-play-billing-9/blob/main/LICENSE)
 
 ## Supported Features
 
@@ -73,210 +73,595 @@ You can easily compile this plugin yourself for any versions of Godot libraries.
 ## Example of Usage on Godot
 
 1. After copying the plugin `.aar` and `.gdap` files into `res://android/plugins/`, make sure to enable the plugin in the **Export** window under the Android preset options.
-2. Create an **Autoload** script (e.g., `Payment.gd`) and initialize the plugin as follows:
+2. Create an **Autoload** script (for example, `Payment.gd`) and initialize the plugin as follows.
+
+The example below matches the actual API exposed by `GodotGooglePlayBilling 9.1.0` and is intended for **Godot 3.6.2**.
+
+> **Important:** This plugin uses `ProductDetails`, not the old SKU API. Use `queryProductDetails()` and the `product_details_query_*` signals. Do not use `querySkuDetails()`, `sku_details_query_completed`, or `sku_details_query_error`.
 
 ```gdscript
 extends Node
 
+const NON_CONSUMABLE_ITEMS = [
+	"no_ads"
+]
+
+const CONSUMABLE_ITEMS = [
+	"gold_pack_small",
+	"gold_pack_large"
+]
+
+const SUBSCRIPTION_ITEMS = [
+	"vip_subscription_monthly",
+	"premium_club_yearly"
+]
+
+signal shop_initialized
 signal shop_item_purchased(item_id)
-signal shop_subscription_purchased(sub_id)
 signal shop_purchase_restored(item_id)
+signal shop_consumable_purchased(item_id)
+signal shop_subscription_purchased(item_id)
+signal shop_purchase_pending(item_id)
 signal shop_error(error_message)
 
-var payment
+var payment = null
 var is_billing_supported = false
+var is_initialized = false
 
-var tracked_purchases = {}
+# { "product_id": ProductDetails Dictionary }
 var available_products = {}
+
+# { "purchase_token": Purchase Dictionary }
+var tracked_purchases = {}
+
 
 func _ready():
 	_initialize_shopping()
 
-func _initialize_shopping():
-	if Engine.has_singleton("GodotGooglePlayBilling"):
-		payment = Engine.get_singleton("GodotGooglePlayBilling")
-		
-		# Connect core connection signals
-		payment.connect("connected", self, "_on_connected")
-		payment.connect("disconnected", self, "_on_disconnected")
-		payment.connect("connect_error", self, "_on_connect_error")
-		
-		# Connect purchase operations signals
-		payment.connect("purchases_updated", self, "_on_purchases_updated")
-		payment.connect("purchase_error", self, "_on_purchase_error")
-		
-		# Connect inventory query signals
-		payment.connect("sku_details_query_completed", self, "_on_sku_details_query_completed")
-		payment.connect("sku_details_query_error", self, "_on_sku_details_query_error")
-		
-		# Connect lifecycle management signals
-		payment.connect("purchase_acknowledged", self, "_on_purchase_acknowledged")
-		payment.connect("purchase_acknowledgement_error", self, "_on_purchase_acknowledgement_error")
-		payment.connect("purchase_consumed", self, "_on_purchase_consumed")
-		payment.connect("purchase_consumption_error", self, "_on_purchase_consumption_error")
-		
-		# Connect new Billing Library 9 response signals
-		payment.connect("query_purchases_response", self, "_on_query_purchases_response")
 
-		payment.startConnection()
-	else:
-		print("Android IAP platform-specific engine singleton not found")
+func _initialize_shopping():
+	if not Engine.has_singleton("GodotGooglePlayBilling"):
+		print("GodotGooglePlayBilling singleton not found")
 		emit_signal("shop_error", "Billing singleton not available")
+		return
+
+	payment = Engine.get_singleton("GodotGooglePlayBilling")
+
+	payment.setLogLevel(1)
+	payment.setLogTag("GodotGooglePlayBilling")
+
+	payment.connect("connected", self, "_on_connected")
+	payment.connect("disconnected", self, "_on_disconnected")
+	payment.connect("connect_error", self, "_on_connect_error")
+
+	payment.connect("purchases_updated", self, "_on_purchases_updated")
+	payment.connect("purchase_error", self, "_on_purchase_error")
+
+	payment.connect(
+		"product_details_query_completed",
+		self,
+		"_on_product_details_query_completed"
+	)
+
+	payment.connect(
+		"product_details_query_error",
+		self,
+		"_on_product_details_query_error"
+	)
+
+	payment.connect(
+		"purchase_acknowledged",
+		self,
+		"_on_purchase_acknowledged"
+	)
+
+	payment.connect(
+		"purchase_acknowledgement_error",
+		self,
+		"_on_purchase_acknowledgement_error"
+	)
+
+	payment.connect(
+		"purchase_consumed",
+		self,
+		"_on_purchase_consumed"
+	)
+
+	payment.connect(
+		"purchase_consumption_error",
+		self,
+		"_on_purchase_consumption_error"
+	)
+
+	payment.connect(
+		"query_purchases_response",
+		self,
+		"_on_query_purchases_response"
+	)
+
+	payment.startConnection()
+
 
 func _on_connected():
-	print("Google Play Billing standard connection successful")
+	print("Google Play Billing connected")
+
 	is_billing_supported = true
+	is_initialized = true
+
+	emit_signal("shop_initialized")
+
 	_reload_shop_inventory()
+
 
 func _on_disconnected():
 	print("Google Play Billing disconnected")
+
 	is_billing_supported = false
+	is_initialized = false
+
 
 func _on_connect_error(response_id, debug_message):
-	print("Connect error id: ", response_id, " message: ", debug_message)
+	print(
+		"Billing connection error: ",
+		response_id,
+		" ",
+		debug_message
+	)
+
 	is_billing_supported = false
-	emit_signal("shop_error", "Connection failed: " + debug_message)
+	is_initialized = false
+
+	emit_signal(
+		"shop_error",
+		"Connection failed: " + str(debug_message)
+	)
+
 
 func _reload_shop_inventory():
 	if not is_billing_supported:
 		return
-	query_sku_details(["no_ads", "gold_pack_small", "gold_pack_large"], "inapp")
-	query_sku_details(["vip_subscription_monthly", "premium_club_yearly"], "subs")
 
-func query_sku_details(items, type = "inapp"):
-	if is_billing_supported:
-		payment.querySkuDetails(items, type)
+	query_product_details(
+		NON_CONSUMABLE_ITEMS + CONSUMABLE_ITEMS,
+		"inapp"
+	)
 
-func _on_sku_details_query_completed(skus):
-	print("SKU details query completed successfully")
-	for sku in skus:
-		print("SKU found: ", sku.sku, " Type: ", sku.type, " Price: ", sku.price)
-		available_products[sku.sku] = sku
+	query_product_details(
+		SUBSCRIPTION_ITEMS,
+		"subs"
+	)
+
+
+func query_product_details(items, type = "inapp"):
+	if not is_billing_supported:
+		return
+
+	if items.empty():
+		return
+
+	payment.queryProductDetails(
+		items,
+		type
+	)
+
+
+func _on_product_details_query_completed(products):
+	print("Product details query completed")
+
+	for product in products:
+		var product_id = product.productId
+
+		available_products[product_id] = product
+
+		print(
+			"Product found: ",
+			product_id,
+			" Type: ",
+			product.type,
+			" Price: ",
+			product.formattedPrice
+		)
+
 	_validate_and_restore_owned_assets()
 
-func _on_sku_details_query_error(response_id, debug_message, skus):
-	print("SKU details query error id: ", response_id, " message: ", debug_message, " skus: ", skus)
-	emit_signal("shop_error", "Failed to load shop items data")
+
+func _on_product_details_query_error(
+	response_id,
+	debug_message,
+	product_ids
+):
+	print(
+		"Product details query error: ",
+		response_id,
+		" ",
+		debug_message
+	)
+
+	print("Products: ", product_ids)
+
+	emit_signal(
+		"shop_error",
+		"Failed to load product details"
+	)
+
 
 func _validate_and_restore_owned_assets():
 	query_purchases("inapp")
 	query_purchases("subs")
 
+
 func query_purchases(type = "inapp"):
-	if is_billing_supported:
-		payment.queryPurchases(type)
-
-func _on_query_purchases_response(purchases, sub_response_code):
-	print("Query purchases response received. Sub response code: ", sub_response_code)
-	_on_purchases_updated(purchases)
-
-func make_purchase(sku_id):
 	if not is_billing_supported:
-		emit_signal("shop_error", "Billing service not connected")
 		return
-	
-	if not available_products.has(sku_id):
-		emit_signal("shop_error", "Product details not found for ID: " + sku_id)
+
+	payment.queryPurchases(type)
+
+
+func _on_query_purchases_response(response):
+	print("Query purchases response: ", response)
+
+	# Success:
+	# {
+	#     "status": 0,
+	#     "purchases": [...]
+	# }
+	#
+	# Error:
+	# {
+	#     "status": 1,
+	#     "response_code": ...,
+	#     "debug_message": "..."
+	# }
+
+	if response == null:
 		return
-		
-	var product = available_products[sku_id]
-	var response = payment.purchase(sku_id)
-	if response.status != OK:
-		print("Error initiating purchase: ", response.message)
-		emit_signal("shop_error", "Failed to start purchase: " + response.message)
+
+	if not response.has("status"):
+		return
+
+	if int(response.status) != 0:
+		var message = "Failed to query purchases"
+
+		if response.has("debug_message"):
+			message = str(response.debug_message)
+
+		emit_signal("shop_error", message)
+		return
+
+	if not response.has("purchases"):
+		return
+
+	_process_purchase_list(
+		response.purchases,
+		true
+	)
+
 
 func _on_purchases_updated(purchases):
-	print("Purchases list updated: ", purchases)
+	print("Purchases updated: ", purchases)
+
+	_process_purchase_list(
+		purchases,
+		false
+	)
+
+
+func _process_purchase_list(purchases, is_restore):
 	for purchase in purchases:
-		# Save purchase token to local tracking dictionary
-		tracked_purchases[purchase.purchase_token] = purchase
-		
-		match int(purchase.purchase_state):
-			1: # 1 is PURCHASED
-				_process_successful_transaction(purchase)
-			2: # 2 is PENDING
-				print("Purchase is pending for SKU: ", purchase.sku)
-				emit_signal("shop_error", "Payment is pending. Please complete transaction.")
-			0: # 0 is UNSPECIFIED_STATE
-				print("Unspecified purchase state for SKU: ", purchase.sku)
+		var product_id = str(purchase.productId)
+		var purchase_token = str(purchase.purchaseToken)
 
-func _process_successful_transaction(purchase):
-	if not purchase.is_acknowledged:
-		# Check product type from the cache map
-		if available_products.has(purchase.sku):
-			var product_info = available_products[purchase.sku]
-			
-			if product_info.type == "subs":
-				# Subscriptions must always be acknowledged
-				print("Acknowledging subscription purchase for: ", purchase.sku)
-				payment.acknowledgePurchase(purchase.purchase_token)
-			else:
-				# Handle standard in-app purchases based on game design
-				if "gold" in purchase.sku or "pack" in purchase.sku:
-					# Consumable items (e.g. coins, packs)
-					print("Consuming multiple-time purchase for: ", purchase.sku)
-					payment.consumePurchase(purchase.purchase_token)
-				else:
-					# Non-consumable items (e.g. no ads, full unlock)
-					print("Acknowledging single-time purchase for: ", purchase.sku)
-					payment.acknowledgePurchase(purchase.purchase_token)
+		tracked_purchases[purchase_token] = purchase
+
+		match int(purchase.purchaseState):
+			1:
+				_process_successful_purchase(
+					purchase,
+					product_id,
+					is_restore
+				)
+
+			2:
+				print("Purchase pending: ", product_id)
+
+				emit_signal(
+					"shop_purchase_pending",
+					product_id
+				)
+
+			0:
+				print(
+					"Unspecified purchase state: ",
+					product_id
+				)
+
+
+func _process_successful_purchase(
+	purchase,
+	product_id,
+	is_restore
+):
+	var purchase_token = str(purchase.purchaseToken)
+	var acknowledged = bool(purchase.isAcknowledged)
+
+	if product_id in SUBSCRIPTION_ITEMS:
+		if not acknowledged:
+			payment.acknowledgePurchase(purchase_token)
 		else:
-			# Safety fallback handling if cache details are missing
-			print("Fallback handling: Acknowledging unknown product type for: ", purchase.sku)
-			payment.acknowledgePurchase(purchase.purchase_token)
-	else:
-		# Restore entitlements if already acknowledged on startup
-		print("Restoring already acknowledged purchase for SKU: ", purchase.sku)
-		_grant_entitlement(purchase.sku, true)
+			_grant_subscription(
+				product_id,
+				is_restore
+			)
 
-func _on_purchase_error(response_id, debug_message):
-	print("Purchase error id: ", response_id, " message: ", debug_message)
-	emit_signal("shop_error", "Purchase failed: " + debug_message)
+		return
+
+	if product_id in CONSUMABLE_ITEMS:
+		# Grant the consumable only after Google Play
+		# confirms that the purchase was consumed.
+		payment.consumePurchase(purchase_token)
+		return
+
+	if product_id in NON_CONSUMABLE_ITEMS:
+		if not acknowledged:
+			payment.acknowledgePurchase(purchase_token)
+		else:
+			_grant_non_consumable(
+				product_id,
+				is_restore
+			)
+
+		return
+
+	print("Unknown product: ", product_id)
+
+	if not acknowledged:
+		payment.acknowledgePurchase(purchase_token)
+
 
 func _on_purchase_acknowledged(purchase_token):
-	print("Purchase acknowledged successfully! Token: ", purchase_token)
-	if tracked_purchases.has(purchase_token):
-		var purchase = tracked_purchases[purchase_token]
-		_grant_entitlement(purchase.sku, false)
+	print("Purchase acknowledged: ", purchase_token)
 
-func _on_purchase_acknowledgement_error(response_id, debug_message, purchase_token):
-	print("Purchase acknowledgement error id: ", response_id, " message: ", debug_message, " token: ", purchase_token)
-	emit_signal("shop_error", "Acknowledgement failed: " + debug_message)
+	if not tracked_purchases.has(purchase_token):
+		print("Purchase token is not tracked")
+		return
+
+	var purchase = tracked_purchases[purchase_token]
+	var product_id = str(purchase.productId)
+
+	if product_id in SUBSCRIPTION_ITEMS:
+		_grant_subscription(product_id, false)
+
+	elif product_id in NON_CONSUMABLE_ITEMS:
+		_grant_non_consumable(product_id, false)
+
+
+func _on_purchase_acknowledgement_error(
+	response_id,
+	debug_message,
+	purchase_token
+):
+	print(
+		"Purchase acknowledgement error: ",
+		response_id,
+		" ",
+		debug_message,
+		" token: ",
+		purchase_token
+	)
+
+	emit_signal(
+		"shop_error",
+		"Acknowledgement failed: " + str(debug_message)
+	)
+
 
 func _on_purchase_consumed(purchase_token):
-	print("Purchase consumed successfully! Token: ", purchase_token)
-	if tracked_purchases.has(purchase_token):
-		var purchase = tracked_purchases[purchase_token]
-		_grant_entitlement(purchase.sku, false)
+	print("Purchase consumed: ", purchase_token)
 
-func _on_purchase_consumption_error(response_id, debug_message, purchase_token):
-	print("Purchase consumption error id: ", response_id, " message: ", debug_message, " token: ", purchase_token)
-	emit_signal("shop_error", "Consumption failed: " + debug_message)
+	if not tracked_purchases.has(purchase_token):
+		print("Consumed purchase token is not tracked")
+		return
 
-func _grant_entitlement(sku_id, is_restored):
-	if available_products.has(sku_id):
-		var product_info = available_products[sku_id]
-		if product_info.type == "subs":
-			print("Granting subscription benefits for: ", sku_id)
-			emit_signal("shop_subscription_purchased", sku_id)
-			return
-			
+	var purchase = tracked_purchases[purchase_token]
+	var product_id = str(purchase.productId)
+
+	_grant_consumable(product_id)
+
+
+func _on_purchase_consumption_error(
+	response_id,
+	debug_message,
+	purchase_token
+):
+	print(
+		"Purchase consumption error: ",
+		response_id,
+		" ",
+		debug_message,
+		" token: ",
+		purchase_token
+	)
+
+	emit_signal(
+		"shop_error",
+		"Consumption failed: " + str(debug_message)
+	)
+
+
+func _on_purchase_error(response_id, debug_message):
+	print(
+		"Purchase error: ",
+		response_id,
+		" ",
+		debug_message
+	)
+
+	emit_signal(
+		"shop_error",
+		"Purchase failed: " + str(debug_message)
+	)
+
+
+func make_purchase(product_id):
+	if not is_billing_supported:
+		emit_signal(
+			"shop_error",
+			"Billing service not connected"
+		)
+		return
+
+	if not available_products.has(product_id):
+		emit_signal(
+			"shop_error",
+			"Product details not found for ID: " + product_id
+		)
+		return
+
+	var product = available_products[product_id]
+	var type = str(product.type)
+
+	# The Java plugin gets ProductDetails from its internal cache.
+	# GDScript passes product ID, product type, account ID and profile ID.
+	payment.purchase(
+		product_id,
+		type,
+		"",
+		""
+	)
+
+
+func _grant_non_consumable(product_id, is_restored):
 	if is_restored:
-		print("Restoring purchase entitlement for: ", sku_id)
-		emit_signal("shop_purchase_restored", sku_id)
+		print("Restoring non-consumable: ", product_id)
+		emit_signal("shop_purchase_restored", product_id)
 	else:
-		print("Granting standard purchase entitlement for: ", sku_id)
-		emit_signal("shop_item_purchased", sku_id)
+		print("Granting non-consumable: ", product_id)
+		emit_signal("shop_item_purchased", product_id)
 
-func get_product_price(sku_id) -> String:
-	if available_products.has(sku_id):
-		return available_products[sku_id].price
+
+func _grant_consumable(product_id):
+	print("Granting consumable: ", product_id)
+
+	emit_signal(
+		"shop_consumable_purchased",
+		product_id
+	)
+
+
+func _grant_subscription(product_id, is_restored):
+	print("Granting subscription: ", product_id)
+
+	emit_signal(
+		"shop_subscription_purchased",
+		product_id
+	)
+
+
+func get_product_price(product_id) -> String:
+	if available_products.has(product_id):
+		return str(
+			available_products[product_id].formattedPrice
+		)
+
 	return ""
 
-func is_product_available(sku_id) -> bool:
-	return available_products.has(sku_id)
+
+func is_product_available(product_id) -> bool:
+	return available_products.has(product_id)
 ```
+
+### Plugin API
+
+The plugin exposes these methods:
+
+- `startConnection()`
+- `endConnection()`
+- `isReady()`
+- `getConnectionState()`
+- `queryPurchases(type)`
+- `queryProductDetails(product_ids, type)`
+- `acknowledgePurchase(purchase_token)`
+- `consumePurchase(purchase_token)`
+- `purchase(product_id, type, account_id, profile_id)`
+
+The `purchase()` method uses the `ProductDetails` cached internally by the plugin. Therefore `queryProductDetails()` must be called before starting a purchase.
+
+For subscriptions, the plugin automatically uses the first available subscription offer from the returned `ProductDetails`.
+
+### ProductDetails dictionary
+
+The plugin converts Google Play `ProductDetails` to Godot dictionaries containing:
+
+- `productId`
+- `title`
+- `description`
+- `type`
+- `price`
+- `currencyCode`
+- `formattedPrice`
+
+### Purchase dictionary
+
+Purchases are converted to Godot dictionaries containing:
+
+- `orderId`
+- `packageName`
+- `productId`
+- `purchaseTime`
+- `purchaseState`
+- `purchaseToken`
+- `signature`
+- `isAutoRenewing`
+- `originalJson`
+- `isAcknowledged`
+
+### Product types
+
+Use:
+
+- `inapp` for one-time and consumable products.
+- `subs` for subscriptions.
+
+### Consumables
+
+Consumable purchases should be consumed with:
+
+```gdscript
+payment.consumePurchase(purchase_token)
+```
+
+The example grants the consumable only after the `purchase_consumed` signal is received.
+
+### Non-consumables and subscriptions
+
+Non-consumable purchases and subscriptions should be acknowledged with:
+
+```gdscript
+payment.acknowledgePurchase(purchase_token)
+```
+
+The example grants the entitlement after `purchase_acknowledged`.
+
+### Pending purchases
+
+If Google Play reports `purchaseState == 2`, the purchase is pending. The example does not grant the product while it is pending. The entitlement is processed only after Google Play later reports the purchase as `PURCHASED`.
+
+### Account and profile IDs
+
+The `purchase()` method accepts obfuscated account and profile IDs:
+
+```gdscript
+payment.purchase(
+	product_id,
+	type,
+	account_id,
+	profile_id
+)
+```
+
+The example passes empty strings. Replace them with your own obfuscated identifiers if your application uses them.
+
 
 ## Upcoming Improvements
 
-Stay tuned for updates, and feel free to [open an issue](https://github.com/201949/godot-google-play-billing-7/issues) or [contribute](https://github.com/201949/godot-google-play-billing-7/pulls) if you have any suggestions or feedback!
+Stay tuned for updates, and feel free to [open an issue](https://github.com/201949/godot-google-play-billing-9/issues) or [contribute](https://github.com/201949/godot-google-play-billing-9/pulls) if you have any suggestions or feedback!
