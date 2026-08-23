@@ -1,11 +1,11 @@
 # Godot Google Play Billing 9
 
-Godot Android plugin for the Google Play Billing Library version 9 (tested on Godot 3.6.2 and newer).
+Godot Android plugin for the Google Play Billing Library version 9 (tested on Godot 3.6.3 and newer).
 
 This plugin bridges the Godot Engine with the latest Google Play Billing API v9.1.0, enabling secure in-app purchases, subscriptions, and advanced sub-response error codes handling required for modern Android releases, including Android 16 (API 36).
 
 [![Android](https://img.shields.io/badge/Platform-Android-brightgreen.svg)](https://developer.android.com)
-[![Godot](https://img.shields.io/badge/Godot%20Engine-3.6.2-blue.svg)](https://github.com/godotengine/godot/)
+[![Godot](https://img.shields.io/badge/Godot%20Engine-3.6.3-blue.svg)](https://github.com/godotengine/godot/)
 [![GPBL](https://img.shields.io/badge/Google%20Play%20Billing%20Library-9.1.0-green.svg)](https://developer.android.com/google/play/billing/integrate)
 [![MIT license](https://img.shields.io/badge/License-MIT-yellowgreen.svg)](https://github.com/201949/godot-google-play-billing-9/blob/main/LICENSE)
 
@@ -47,8 +47,8 @@ For information on version deprecation, visit: [Google Play Billing Library Depr
 
 You can easily compile this plugin yourself for any versions of Godot libraries.
 
-1. Go to the downloads page for your version of Godot (e.g., Godot 3.6.2).
-2. Download the Android AAR Library (e.g., `godot-lib.3.6.2.stable.release.aar`).
+1. Go to the downloads page for your version of Godot (e.g., Godot 3.6.3).
+2. Download the Android AAR Library (e.g., `godot-lib.3.6.3.stable.release.aar`).
 3. Create a folder named `libs` in the root directory of this repository.
 4. Place the newly downloaded `.aar` file into the `libs` directory.
 5. Open a command window (or Git Bash) in the repository root directory, then run the appropriate command:
@@ -75,7 +75,7 @@ You can easily compile this plugin yourself for any versions of Godot libraries.
 1. After copying the plugin `.aar` and `.gdap` files into `res://android/plugins/`, make sure to enable the plugin in the **Export** window under the Android preset options.
 2. Create an **Autoload** script (for example, `Payment.gd`) and initialize the plugin as follows.
 
-The example below matches the actual API exposed by `GodotGooglePlayBilling 9.1.0` and is intended for **Godot 3.6.2**.
+The example below matches the actual API exposed by `GodotGooglePlayBilling 9.1.0` and is intended for **Godot 3.6.3**.
 
 > **Important:** This plugin uses `ProductDetails`, not the old SKU API. Use `queryProductDetails()` and the `product_details_query_*` signals. Do not use `querySkuDetails()`, `sku_details_query_completed`, or `sku_details_query_error`.
 
