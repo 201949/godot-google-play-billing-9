@@ -1,8 +1,8 @@
-# Godot Google Play Billing 9
+# Google Play Billing 9 plugin for Godot 3.6.3
 
-Godot Android plugin for the Google Play Billing Library version 9 (tested on Godot 3.6.3 and newer).
+Godot Android plugin for the Google Play Billing Library version 9 (tested on Godot 3.6.1-3).
 
-This plugin bridges the Godot Engine with the latest Google Play Billing API v9.1.0, enabling secure in-app purchases, subscriptions, and advanced sub-response error codes handling required for modern Android releases, including Android 16 (API 36).
+This plugin bridges the Godot Engine version 3.6.x with the latest Google Play Billing API v9.1.0, enabling secure in-app purchases, subscriptions, and advanced sub-response error codes handling required for modern Android releases, including Android 16 (API 36).
 
 [![Android](https://img.shields.io/badge/Platform-Android-brightgreen.svg)](https://developer.android.com)
 [![Godot](https://img.shields.io/badge/Godot%20Engine-3.6.3-blue.svg)](https://github.com/godotengine/godot/)
